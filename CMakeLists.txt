@@ -511,6 +511,7 @@ if(BUILD_PYTHON_BINDINGS)
       THIRD_PARTY_LICENSES.md
       licenses/Apache-2.0.txt
       licenses/Robotiq-2F85-BSD-2-Clause.txt
+      licenses/Kinova-Gen3-BSD-3-Clause.txt
       DESTINATION mj_kdl_wrapper
     )
     # Installed, not mapped in by pyproject: a wheel mapping above this package leaks sys.path.

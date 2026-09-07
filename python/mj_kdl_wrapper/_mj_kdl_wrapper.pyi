@@ -94,8 +94,9 @@ class SceneObject:
 
 
 class CameraSpec:
-    """Named fixed world camera. pos and fovy are required."""
+    """Named camera on a body, or in the world when body is empty. pos and fovy are required."""
     name: str
+    body: str
     pos: Optional[list[float]]
     quat: list[float]
     fovy: Optional[float]

@@ -80,6 +80,7 @@ struct PySceneObject
 struct PyCameraSpec
 {
     std::string                          name;
+    std::string                          body;
     std::optional<std::array<double, 3>> pos;
     std::array<double, 4>                quat = { 0.0, 0.0, 0.0, 1.0 };
     std::optional<double>                fovy;
@@ -191,6 +192,7 @@ CameraSpec to_cpp(const PyCameraSpec &src)
 {
     CameraSpec out;
     out.name = src.name;
+    out.body = src.body;
     if (!src.pos) throw std::runtime_error("CameraSpec.pos must be set");
     if (!src.fovy) throw std::runtime_error("CameraSpec.fovy must be set");
     std::copy(src.pos->begin(), src.pos->end(), out.pos);
@@ -1336,11 +1338,12 @@ PYBIND11_MODULE(_mj_kdl_wrapper, m)
       .def_readwrite("quat", &PySiteSpec::quat, "Orientation in the body frame [x, y, z, w].");
 
     py::class_<PyCameraSpec>(
-      m, "CameraSpec", "Named fixed world camera. pos and fovy are required."
+      m, "CameraSpec", "Named camera on a body, or in the world when body is empty. pos and fovy are required."
     )
       .def(py::init<>())
       .def_readwrite("name", &PyCameraSpec::name, "Camera name.")
-      .def_readwrite("pos", &PyCameraSpec::pos, "Required world position, in meters.")
+      .def_readwrite("body", &PyCameraSpec::body, "Anchor body name; empty means the worldbody.")
+      .def_readwrite("pos", &PyCameraSpec::pos, "Required position in the anchor body's frame, in meters.")
       .def_readwrite("quat", &PyCameraSpec::quat, "Orientation [x, y, z, w].")
       .def_readwrite("fovy", &PyCameraSpec::fovy, "Required vertical field of view, in degrees.");
 

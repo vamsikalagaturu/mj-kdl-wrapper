@@ -206,6 +206,7 @@ These ship in the repo and the wheel, and are copied into the user cache
 | Path | Description |
 |------|-------------|
 | `assets/robotiq_2f85/2f85.xml` | Local Robotiq 2F-85 gripper asset used by examples/tests |
+| `assets/kinova_gen3/gen3.xml` | Local Kinova Gen3 arm asset; Menagerie's model plus a base_link/shoulder_link contact exclusion |
 | `assets/ft_sensor.xml` | Local 6-axis force-torque sensor asset used by FT examples/tests |
 | `assets/table.xml` | Table asset with authored `table_top` site |
 | `assets/mug.xml`, `assets/mug_table.xml` | Pouring example assets |
