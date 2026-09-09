@@ -1674,10 +1674,25 @@ void pace_realtime(Viewer *v, const mjModel *m)
       (v->realtime_factor > 0.0) ? m->opt.timestep / v->realtime_factor : 0.0;
     const auto now = Clock::now();
     if (wall_per_step > 0.0 && v->_tick_t.time_since_epoch().count() != 0) {
-        const auto next = v->_tick_t + Dur(wall_per_step);
-        if (now < next) std::this_thread::sleep_until(next);
+        /* In the clock's own duration, so that the deadline can be carried
+         * forward below without a lossy conversion on every step. */
+        const auto period =
+          std::chrono::duration_cast<Clock::duration>(Dur(wall_per_step));
+        const auto next = v->_tick_t + period;
+        if (now < next) {
+            std::this_thread::sleep_until(next);
+            /* Carry the deadline rather than restarting from the wake time:
+             * sleep_until overshoots by tens of microseconds, and measuring the
+             * next period from the moment we woke would fold that into every
+             * step. The loss is per step, so it grows as the timestep shrinks
+             * -- roughly 1% at 2 ms and 2% at 1 ms. */
+            v->_tick_t = next;
+            return;
+        }
     }
-    v->_tick_t = Clock::now();
+    /* Already past the deadline: resynchronise instead of carrying it, so that
+     * a loop coming back from a stall does not burst to catch up. */
+    v->_tick_t = now;
 }
 
 /* The user's current speed setting; 0.0 means uncapped. Read without a lock because the render
@@ -2068,6 +2083,13 @@ struct SimUiState
      * thread appends to it while the render thread reads it. */
     mjvScene   user_scn{};
     std::mutex user_scn_mtx;
+    /* Key state as the render thread's key callback sees it, so that a caller
+     * driving physics on another thread can read the keyboard without touching
+     * GLFW, which requires its window calls on the owning thread. */
+    std::atomic<bool> keys[GLFW_KEY_LAST + 1]{};
+    /* Keys the caller has claimed: recorded above, but withheld from the UI's
+     * own handler so that its bindings do not fight the caller's. */
+    std::atomic<bool> captured[GLFW_KEY_LAST + 1]{};
 };
 
 static VideoResolution recorder_resolution_from_index(int index)
@@ -2165,6 +2187,16 @@ static void record_sim_ui_frame(SimUiState *ss, mjModel *m, mjData *d)
 
 static void sim_ui_key_cb(GLFWwindow *w, int key, int scancode, int action, int mods)
 {
+    /* Record the state for key_pressed() before anything consumes the event, so
+     * that a caller on the physics thread sees every key the window receives.
+     * A key the caller has claimed stops here and never reaches the UI. */
+    if (g_viewer && g_viewer->_sim_ui && key >= 0 && key <= GLFW_KEY_LAST) {
+        auto *ss = static_cast<SimUiState *>(g_viewer->_sim_ui);
+        if (action == GLFW_PRESS) ss->keys[key].store(true, std::memory_order_relaxed);
+        else if (action == GLFW_RELEASE) ss->keys[key].store(false, std::memory_order_relaxed);
+        if (ss->captured[key].load(std::memory_order_relaxed)) return;
+    }
+
     if ((action == GLFW_PRESS || action == GLFW_REPEAT) && g_viewer && g_viewer->_sim_ui) {
         auto *ss = static_cast<SimUiState *>(g_viewer->_sim_ui);
         if (key == GLFW_KEY_PERIOD) {
@@ -2318,6 +2350,25 @@ bool is_running(const Viewer *v)
     }
     if (!v->window) return false;
     return !glfwWindowShouldClose(v->window);
+}
+
+void capture_key(Viewer *v, int glfw_key, bool capture)
+{
+    if (!v || !v->_sim_ui || glfw_key < 0 || glfw_key > GLFW_KEY_LAST) return;
+    auto *ss = static_cast<SimUiState *>(v->_sim_ui);
+    if (ss) ss->captured[glfw_key].store(capture, std::memory_order_relaxed);
+}
+
+bool key_pressed(const Viewer *v, int glfw_key)
+{
+    if (!v || glfw_key < 0 || glfw_key > GLFW_KEY_LAST) return false;
+    if (v->_sim_ui) {
+        auto *ss = static_cast<SimUiState *>(v->_sim_ui);
+        if (!ss) return false;
+        return ss->keys[glfw_key].load(std::memory_order_relaxed);
+    }
+    if (!v->window) return false;
+    return glfwGetKey(v->window, glfw_key) == GLFW_PRESS;
 }
 
 bool render(Viewer *v, mjModel *m, mjData *d)

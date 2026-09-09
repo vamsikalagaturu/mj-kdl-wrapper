@@ -1,7 +1,9 @@
 name: tests
 
 on:
+  # Branch pushes only; a PR branch raises both events and runs each check twice.
   push:
+    branches: [main, dev]
   pull_request:
 
 jobs:
