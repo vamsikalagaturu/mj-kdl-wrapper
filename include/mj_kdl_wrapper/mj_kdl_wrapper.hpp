@@ -913,6 +913,47 @@ bool is_running(const Viewer *v);
 
 /**
  * @ingroup grp_viewer
+ * Whether a key is currently held down in the viewer's window.
+ *
+ * The simulate UI opened by init_window_sim() owns its GLFW window on the
+ * render thread, so a caller driving physics on its own thread must not call
+ * glfwGetKey() itself. This reads the key state that the UI's own key callback
+ * records, which is safe from any thread.
+ *
+ * For a window opened by init_window() this forwards to glfwGetKey() and must
+ * therefore be called from the thread that owns the window, as GLFW requires.
+ *
+ * Keys the UI consumes for itself (',' and '.' for the speed control) are
+ * reported like any other.
+ *
+ * @param[in] v         Viewer, or nullptr.
+ * @param[in] glfw_key  A GLFW key code, e.g. GLFW_KEY_UP.
+ * @return true while the key is held; false for a nullptr or headless viewer,
+ *         or an out-of-range key code.
+ */
+bool key_pressed(const Viewer *v, int glfw_key);
+
+/**
+ * @ingroup grp_viewer
+ * Claim a key for the caller, so the simulate UI never acts on it.
+ *
+ * The UI binds keys of its own: the left and right arrows scrub the history
+ * and single-step, escape restores the free camera, space pauses. A caller
+ * that drives a robot with those keys would otherwise fight the UI for them.
+ * A captured key is still reported by key_pressed(); it is only withheld from
+ * the UI's own handler.
+ *
+ * Has no effect on a window opened by init_window(), which has no UI to
+ * withhold the key from.
+ *
+ * @param[in,out] v         Viewer initialised by init_window_sim(), or nullptr.
+ * @param[in]     glfw_key  A GLFW key code, e.g. GLFW_KEY_LEFT.
+ * @param[in]     capture   true to claim the key, false to give it back.
+ */
+void capture_key(Viewer *v, int glfw_key, bool capture = true);
+
+/**
+ * @ingroup grp_viewer
  * Render the current simulation frame to the viewer window.
  * @param[in,out] v  Viewer created by init_window().
  * @param[in]     r  Robot whose model and data are rendered.
